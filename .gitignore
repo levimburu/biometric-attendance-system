@@ -1,0 +1,39 @@
+# ── SENSITIVE FILES ───────────────────────────────────────
+# Never commit real credentials
+config.py
+
+# ── PYTHON ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+
+# ── LOCAL DATABASE ────────────────────────────────────────
+offline_data.db
+*.db
+*.sqlite
+
+# ── OS FILES ──────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDE FILES ─────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── ARDUINO ───────────────────────────────────────────────
+*.elf
+*.hex
+build/
+
+# ── LOGS ──────────────────────────────────────────────────
+*.log
+logs/

@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Biometric Attendance — Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root {
+    --navy:  #0D1B2A;
+    --dark:  #112233;
+    --teal:  #0D9488;
+    --teal2: #14B8A6;
+    --amber: #F59E0B;
+    --green: #22C55E;
+    --red:   #EF4444;
+    --gray:  #64748B;
+    --white: #F8FAFC;
+    --darker:#0A1628;
+  }
+  body { font-family:'Segoe UI',sans-serif; background:var(--navy); color:var(--white); min-height:100vh; }
+
+  /* LOGIN */
+  #login-page { display:flex; align-items:center; justify-content:center; min-height:100vh; }
+  .login-card {
+    background:var(--dark); border-radius:16px; padding:0;
+    width:420px; overflow:hidden;
+    box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  }
+  .login-header {
+    background:var(--teal); padding:32px; text-align:center;
+  }
+  .login-header h1 { font-size:22px; font-weight:700; }
+  .login-header p  { font-size:13px; opacity:0.8; margin-top:4px; }
+  .login-body { padding:30px; }
+  .form-group { margin-bottom:16px; }
+  .form-group label { display:block; font-size:12px; color:var(--gray); margin-bottom:6px; }
+  .form-group input {
+    width:100%; padding:11px 14px; background:var(--navy);
+    border:1px solid #1E3A5F; border-radius:8px; color:var(--white);
+    font-size:14px; outline:none; transition:border-color 0.2s;
+  }
+  .form-group input:focus { border-color:var(--teal); }
+  .btn-login {
+    width:100%; padding:12px; background:var(--teal); color:white;
+    border:none; border-radius:8px; font-size:14px; font-weight:600;
+    cursor:pointer; transition:background 0.2s;
+  }
+  .btn-login:hover { background:#0F766E; }
+  .login-note { text-align:center; font-size:11px; color:var(--gray); margin-top:12px; }
+  .error-msg { color:var(--red); font-size:12px; margin-top:8px; text-align:center; }
+
+  /* MAIN APP */
+  #app { display:none; }
+  .layout { display:flex; min-height:100vh; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width:230px; background:var(--darker); display:flex;
+    flex-direction:column; position:fixed; height:100vh;
+    overflow-y:auto;
+  }
+  .sidebar-logo {
+    background:var(--teal); padding:20px; text-align:center;
+  }
+  .sidebar-logo .company { font-size:11px; opacity:0.8; }
+  .sidebar-logo .title   { font-size:15px; font-weight:700; }
+  .user-card {
+    margin:12px; background:var(--dark); border-radius:10px;
+    padding:12px; text-align:center;
+  }
+  .user-card .name { font-size:13px; font-weight:600; }
+  .user-card .role {
+    font-size:10px; color:var(--teal); text-transform:uppercase;
+    letter-spacing:1px; margin-top:2px;
+  }
+  .nav-label {
+    font-size:9px; color:var(--gray); padding:8px 15px 4px;
+    letter-spacing:1px; text-transform:uppercase;
+  }
+  .nav-btn {
+    display:flex; align-items:center; gap:10px;
+    padding:10px 15px; cursor:pointer; transition:background 0.15s;
+    border:none; background:transparent; color:var(--white);
+    font-size:13px; width:100%; text-align:left;
+    border-radius:8px; margin:1px 8px; width:calc(100% - 16px);
+  }
+  .nav-btn:hover    { background:var(--dark); }
+  .nav-btn.active   { background:var(--teal); color:white; }
+  .online-status {
+    margin-top:auto; padding:12px 15px;
+    font-size:11px; color:var(--gray);
+  }
+  .logout-btn {
+    margin:8px 12px 15px; padding:10px;
+    background:var(--red); color:white; border:none;
+    border-radius:8px; cursor:pointer; font-size:13px;
+    font-weight:600; width:calc(100% - 24px);
+  }
+
+  /* MAIN CONTENT */
+  .main { margin-left:230px; flex:1; }
+  .page-header {
+    background:var(--dark); padding:20px 28px; border-bottom:1px solid #1E3A5F;
+  }
+  .page-header h2 { font-size:20px; font-weight:700; }
+  .page-header p  { font-size:12px; color:var(--gray); margin-top:2px; }
+
+  /* PAGES */
+  .page { display:none; padding:24px 28px; }
+  .page.active { display:block; }
+
+  /* STATS GRID */
+  .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+  .stat-card {
+    background:var(--dark); border-radius:12px; padding:20px;
+    text-align:center;
+  }
+  .stat-card .value { font-size:32px; font-weight:700; }
+  .stat-card .label { font-size:11px; color:var(--gray); margin-top:4px; }
+  .teal  { color:var(--teal); }
+  .amber { color:var(--amber); }
+  .green { color:var(--green); }
+  .red   { color:var(--red); }
+
+  /* TABLE */
+  .table-card {
+    background:var(--dark); border-radius:12px; overflow:hidden;
+  }
+  .table-card-header {
+    padding:16px 20px; border-bottom:1px solid #1E3A5F;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .table-card-header h3 { font-size:14px; font-weight:600; }
+  table { width:100%; border-collapse:collapse; }
+  thead th {
+    background:#1E3A5F; padding:10px 16px; text-align:left;
+    font-size:11px; font-weight:600; text-transform:uppercase;
+    letter-spacing:0.5px; color:var(--gray);
+  }
+  tbody tr { border-bottom:1px solid #1a2a3a; transition:background 0.1s; }
+  tbody tr:hover { background:#1a2a3a; }
+  tbody td { padding:10px 16px; font-size:13px; }
+  .badge {
+    display:inline-block; padding:3px 10px; border-radius:20px;
+    font-size:11px; font-weight:600;
+  }
+  .badge-present { background:#064E3B; color:var(--green); }
+  .badge-late    { background:#78350F; color:var(--amber); }
+  .badge-absent  { background:#7F1D1D; color:var(--red); }
+  .badge-active  { background:#064E3B; color:var(--green); }
+  .badge-ended   { background:#1E293B; color:var(--gray); }
+
+  /* SEARCH / FILTER */
+  .filters {
+    display:flex; gap:12px; margin-bottom:16px; align-items:center;
+  }
+  .search-input {
+    padding:9px 14px; background:var(--dark); border:1px solid #1E3A5F;
+    border-radius:8px; color:var(--white); font-size:13px; outline:none;
+    width:260px;
+  }
+  .search-input:focus { border-color:var(--teal); }
+  .filter-select {
+    padding:9px 14px; background:var(--dark); border:1px solid #1E3A5F;
+    border-radius:8px; color:var(--white); font-size:13px; outline:none;
+  }
+
+  /* PERCENTAGE BAR */
+  .pct-bar { height:6px; background:#1E3A5F; border-radius:3px; margin-top:4px; }
+  .pct-fill { height:100%; border-radius:3px; }
+
+  /* RESPONSIVE */
+  @media(max-width:768px) {
+    .sidebar { width:60px; }
+    .main { margin-left:60px; }
+    .nav-btn span { display:none; }
+    .stats-grid { grid-template-columns:repeat(2,1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN PAGE -->
+<div id="login-page">
+  <div class="login-card">
+    <div class="login-header">
+      <div class="company">TechAttend</div>
+      <h1>Biometric Attendance</h1>
+      <p>Management Dashboard</p>
+    </div>
+    <div class="login-body">
+      <div class="form-group">
+        <label>EMAIL ADDRESS</label>
+        <input type="email" id="login-email" placeholder="your@email.com">
+      </div>
+      <div class="form-group">
+        <label>PASSWORD</label>
+        <input type="password" id="login-password" placeholder="••••••••">
+      </div>
+      <div id="login-error" class="error-msg"></div>
+      <button class="btn-login" onclick="doLogin()">SIGN IN</button>
+      <p class="login-note">No sign-up available. Contact your administrator for access.</p>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div class="layout">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sidebar-logo">
+        <div class="company">TechAttend</div>
+        <div class="title">Attendance System</div>
+      </div>
+      <div class="user-card">
+        <div class="name" id="user-name">Loading...</div>
+        <div class="role" id="user-role">—</div>
+      </div>
+      <div class="nav-label">Navigation</div>
+      <button class="nav-btn active" onclick="showPage('dashboard',this)">🏠 <span>Dashboard</span></button>
+      <button class="nav-btn" onclick="showPage('attendance',this)">📋 <span>Attendance</span></button>
+      <button class="nav-btn" onclick="showPage('sessions',this)">⏱ <span>Sessions</span></button>
+      <button class="nav-btn" onclick="showPage('students',this)">👥 <span>Students</span></button>
+      <button class="nav-btn" onclick="showPage('reports',this)">📊 <span>Reports</span></button>
+      <div class="online-status" id="online-status">● Checking connection...</div>
+      <button class="logout-btn" onclick="doLogout()">Sign Out</button>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main">
+
+      <!-- DASHBOARD PAGE -->
+      <div id="page-dashboard" class="page active">
+        <div class="page-header">
+          <h2>Dashboard</h2>
+          <p id="welcome-msg">Welcome back</p>
+        </div>
+        <div style="padding:24px 28px">
+          <div class="stats-grid">
+            <div class="stat-card"><div class="value teal"  id="stat-students">—</div><div class="label">Total Students</div></div>
+            <div class="stat-card"><div class="value amber" id="stat-sessions">—</div><div class="label">Active Sessions</div></div>
+            <div class="stat-card"><div class="value green" id="stat-today">—</div>  <div class="label">Present Today</div></div>
+            <div class="stat-card"><div class="value red"   id="stat-absent">—</div> <div class="label">Absent Today</div></div>
+          </div>
+
+          <div class="table-card">
+            <div class="table-card-header">
+              <h3>Today's Active Sessions</h3>
+              <span style="font-size:11px;color:var(--gray)">Live</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Session ID</th><th>Lecturer</th><th>Unit</th>
+                  <th>Started</th><th>Present</th><th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="sessions-today-body">
+                <tr><td colspan="6" style="text-align:center;color:var(--gray);padding:20px">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ATTENDANCE PAGE -->
+      <div id="page-attendance" class="page">
+        <div class="page-header">
+          <h2>Attendance Records</h2>
+          <p>View all attendance — read only</p>
+        </div>
+        <div style="padding:24px 28px">
+          <div class="filters">
+            <input class="search-input" id="att-search"
+              placeholder="Search by name or student ID..."
+              oninput="filterAttendance()">
+            <input type="date" class="filter-select" id="att-date"
+              onchange="loadAttendance()">
+            <select class="filter-select" id="att-status" onchange="filterAttendance()">
+              <option value="">All Status</option>
+              <option value="present">Present</option>
+              <option value="late">Late</option>
+              <option value="absent">Absent</option>
+            </select>
+          </div>
+          <div class="table-card">
+            <table>
+              <thead>
+                <tr>
+                  <th>Student ID</th><th>Name</th><th>Unit</th>
+                  <th>Lecturer</th><th>Date</th><th>Time In</th><th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="attendance-body">
+                <tr><td colspan="7" style="text-align:center;color:var(--gray);padding:20px">Select a date to view attendance</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SESSIONS PAGE -->
+      <div id="page-sessions" class="page">
+        <div class="page-header">
+          <h2>Sessions</h2>
+          <p>All class sessions — read only</p>
+        </div>
+        <div style="padding:24px 28px">
+          <div class="table-card">
+            <table>
+              <thead>
+                <tr>
+                  <th>Session ID</th><th>Lecturer</th><th>Unit</th>
+                  <th>Date</th><th>Start</th><th>End</th><th>Present</th><th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="sessions-body">
+                <tr><td colspan="8" style="text-align:center;color:var(--gray);padding:20px">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- STUDENTS PAGE -->
+      <div id="page-students" class="page">
+        <div class="page-header">
+          <h2>Students</h2>
+          <p>Enrolled students — view only from dashboard</p>
+        </div>
+        <div style="padding:24px 28px">
+          <div class="filters">
+            <input class="search-input" id="stu-search"
+              placeholder="Search students..."
+              oninput="filterStudents()">
+          </div>
+          <div class="table-card">
+            <table>
+              <thead>
+                <tr>
+                  <th>Finger Slot</th><th>Student ID</th><th>Full Name</th>
+                  <th>Course</th><th>Attendance %</th>
+                </tr>
+              </thead>
+              <tbody id="students-body">
+                <tr><td colspan="5" style="text-align:center;color:var(--gray);padding:20px">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- REPORTS PAGE -->
+      <div id="page-reports" class="page">
+        <div class="page-header">
+          <h2>Reports & Analytics</h2>
+          <p>Attendance insights across the institution</p>
+        </div>
+        <div style="padding:24px 28px">
+          <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
+            <div class="table-card" style="padding:20px">
+              <h3 style="font-size:13px;margin-bottom:12px;color:var(--teal)">Overall Attendance Rate</h3>
+              <div style="font-size:36px;font-weight:700" id="overall-rate">—</div>
+              <div style="font-size:11px;color:var(--gray)">Across all units</div>
+            </div>
+            <div class="table-card" style="padding:20px">
+              <h3 style="font-size:13px;margin-bottom:12px;color:var(--amber)">Total Sessions This Month</h3>
+              <div style="font-size:36px;font-weight:700;color:var(--amber)" id="monthly-sessions">—</div>
+              <div style="font-size:11px;color:var(--gray)">Classes conducted</div>
+            </div>
+            <div class="table-card" style="padding:20px">
+              <h3 style="font-size:13px;margin-bottom:12px;color:var(--green)">At Risk Students</h3>
+              <div style="font-size:36px;font-weight:700;color:var(--red)" id="at-risk">—</div>
+              <div style="font-size:11px;color:var(--gray)">Below 75% attendance</div>
+            </div>
+          </div>
+
+          <div class="table-card" style="margin-top:20px">
+            <div class="table-card-header">
+              <h3>Student Attendance Percentages</h3>
+            </div>
+            <table>
+              <thead>
+                <tr><th>Student ID</th><th>Name</th><th>Course</th><th>Attendance %</th><th>Risk Level</th></tr>
+              </thead>
+              <tbody id="report-body">
+                <tr><td colspan="5" style="text-align:center;color:var(--gray);padding:20px">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end main -->
+  </div><!-- end layout -->
+</div><!-- end app -->
+
+<script>
+// ── SUPABASE CONFIG ──────────────────────────────────────
+const SUPABASE_URL = 'https://dimccbmypdgoiqxdlwxe.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpbWNjYm15cGRnb2lxeGRsd3hlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MjIxNzgsImV4cCI6MjA5NDQ5ODE3OH0.-19ugh5m4VamlYWvOiKgNk8obaTD8eaquUR-3e7W-vM';
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+let allAttendance = [];
+let allStudents   = [];
+
+// ── LOGIN ────────────────────────────────────────────────
+// Uses custom app_password auth — consistent with the admin desktop app.
+// Supabase Auth (signInWithPassword) is NOT used here.
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-password').value.trim();
+  const err   = document.getElementById('login-error');
+  const btn   = document.querySelector('.btn-login');
+
+  if (!email || !pass) { err.textContent = 'Please enter email and password.'; return; }
+  err.textContent = '';
+  btn.textContent = 'Signing in...';
+  btn.disabled = true;
+
+  try {
+    // Fetch user by email from users table
+    const { data: users, error } = await sb
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .eq('is_active', true)
+      .limit(1);
+
+    if (error || !users || users.length === 0) {
+      err.textContent = 'Invalid email or password.';
+      btn.textContent = 'SIGN IN'; btn.disabled = false;
+      return;
+    }
+
+    const userData = users[0];
+
+    // Compare app_password directly (same as database.py login)
+    if (userData.app_password !== pass) {
+      err.textContent = 'Invalid email or password.';
+      btn.textContent = 'SIGN IN'; btn.disabled = false;
+      return;
+    }
+
+    currentUser = userData;
+    document.getElementById('login-page').style.display = 'none';
+    document.getElementById('app').style.display        = 'block';
+    document.getElementById('user-name').textContent    = userData.full_name;
+    document.getElementById('user-role').textContent    = userData.role.replace(/_/g,' ').toUpperCase();
+    document.getElementById('welcome-msg').textContent  = `Welcome back, ${userData.full_name}`;
+
+    // Pre-fill today's date on attendance filter
+    document.getElementById('att-date').value = new Date().toISOString().split('T')[0];
+
+    loadDashboard();
+    checkOnlineStatus();
+    setInterval(checkOnlineStatus, 30000);
+    setInterval(loadDashboard, 60000);
+
+  } catch(e) {
+    err.textContent = 'Connection error. Check your internet.';
+    btn.textContent = 'SIGN IN'; btn.disabled = false;
+  }
+}
+
+// Allow Enter key to submit login
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('login-password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+  document.getElementById('login-email').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+});
+
+function doLogout() {
+  // No Supabase Auth session to clear — just reset the UI
+  document.getElementById('app').style.display        = 'none';
+  document.getElementById('login-page').style.display = 'flex';
+  document.getElementById('login-email').value        = '';
+  document.getElementById('login-password').value     = '';
+  document.getElementById('login-error').textContent  = '';
+  document.querySelector('.btn-login').textContent    = 'SIGN IN';
+  document.querySelector('.btn-login').disabled       = false;
+  currentUser = null;
+  allAttendance = [];
+  allStudents   = [];
+}
+
+// ── NAVIGATION ───────────────────────────────────────────
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+
+  if (name === 'attendance') loadAttendance();
+  if (name === 'sessions')   loadSessions();
+  if (name === 'students')   loadStudents();
+  if (name === 'reports')    loadReports();
+}
+
+// ── DASHBOARD ────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+
+    const [studRes, sessRes, attRes] = await Promise.all([
+      sb.from('students').select('id', {count:'exact'}).eq('is_active',true),
+      sb.from('sessions').select('*,users(full_name),units(code,name)')
+        .eq('is_active',true).eq('date',today),
+      sb.from('attendance').select('id,status',{count:'exact'}).eq('date',today)
+    ]);
+
+    const present = (attRes.data||[]).filter(a=>a.status==='present').length;
+    const absent  = (attRes.count||0) - present;
+
+    document.getElementById('stat-students').textContent = studRes.count || 0;
+    document.getElementById('stat-sessions').textContent = (sessRes.data||[]).length;
+    document.getElementById('stat-today').textContent    = present;
+    document.getElementById('stat-absent').textContent   = absent;
+
+    // Active sessions table
+    const tbody = document.getElementById('sessions-today-body');
+    if (!sessRes.data || sessRes.data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray);padding:20px">No active sessions right now</td></tr>';
+    } else {
+      tbody.innerHTML = sessRes.data.map(s => `
+        <tr>
+          <td style="font-family:monospace;color:var(--teal)">${s.session_code}</td>
+          <td>${s.users?.full_name||'—'}</td>
+          <td>${s.units?.code||''} — ${s.units?.name||''}</td>
+          <td>${s.start_time?.substring(0,5)||'—'}</td>
+          <td style="font-weight:600;color:var(--green)">${s.total_present}</td>
+          <td><span class="badge badge-active">● Active</span></td>
+        </tr>
+      `).join('');
+    }
+  } catch(e) { console.error(e); }
+}
+
+// ── ATTENDANCE ───────────────────────────────────────────
+async function loadAttendance() {
+  const date = document.getElementById('att-date').value;
+  if (!date) return;
+
+  const { data } = await sb.from('attendance')
+    .select('*, students(student_id,full_name), units(code,name), sessions(session_code,users(full_name))')
+    .eq('date', date)
+    .order('time_in', {ascending:false});
+
+  allAttendance = data || [];
+  renderAttendance(allAttendance);
+}
+
+function renderAttendance(data) {
+  const tbody = document.getElementById('attendance-body');
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--gray);padding:20px">No records found</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(r => `
+    <tr>
+      <td style="font-family:monospace">${r.students?.student_id||'—'}</td>
+      <td>${r.students?.full_name||'—'}</td>
+      <td style="color:var(--teal)">${r.units?.code||'—'}</td>
+      <td>${r.sessions?.users?.full_name||'—'}</td>
+      <td>${r.date||'—'}</td>
+      <td>${(r.time_in||'').substring(0,5)}</td>
+      <td><span class="badge badge-${r.status}">${r.status?.toUpperCase()}</span></td>
+    </tr>
+  `).join('');
+}
+
+function filterAttendance() {
+  const q   = document.getElementById('att-search').value.toLowerCase();
+  const sta = document.getElementById('att-status').value;
+  let filtered = allAttendance;
+  if (q)   filtered = filtered.filter(r =>
+    (r.students?.full_name||'').toLowerCase().includes(q) ||
+    (r.students?.student_id||'').toLowerCase().includes(q));
+  if (sta) filtered = filtered.filter(r => r.status === sta);
+  renderAttendance(filtered);
+}
+
+// ── SESSIONS ─────────────────────────────────────────────
+async function loadSessions() {
+  const { data } = await sb.from('sessions')
+    .select('*, users(full_name), units(code,name)')
+    .order('created_at', {ascending:false})
+    .limit(100);
+
+  const tbody = document.getElementById('sessions-body');
+  if (!data?.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--gray);padding:20px">No sessions found</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(s => `
+    <tr>
+      <td style="font-family:monospace;color:var(--teal);font-size:11px">${s.session_code}</td>
+      <td>${s.users?.full_name||'—'}</td>
+      <td>${s.units?.code||''} — ${(s.units?.name||'').substring(0,20)}</td>
+      <td>${s.date||'—'}</td>
+      <td>${(s.start_time||'').substring(0,5)}</td>
+      <td>${s.end_time?(s.end_time.substring(0,5)):'—'}</td>
+      <td style="font-weight:600;color:var(--green)">${s.total_present}</td>
+      <td><span class="badge ${s.is_active?'badge-active':'badge-ended'}">${s.is_active?'● Active':'■ Ended'}</span></td>
+    </tr>
+  `).join('');
+}
+
+// ── STUDENTS ─────────────────────────────────────────────
+async function loadStudents() {
+  // Fetch students and their attendance records together
+  const [stuRes, attRes] = await Promise.all([
+    sb.from('students').select('*').eq('is_active',true).order('full_name'),
+    sb.from('attendance').select('student_id,status')
+  ]);
+
+  allStudents = stuRes.data || [];
+
+  // Build a real attendance map per student
+  const attMap = {};
+  (attRes.data||[]).forEach(a => {
+    if (!attMap[a.student_id]) attMap[a.student_id] = {total:0, present:0};
+    attMap[a.student_id].total++;
+    if (a.status === 'present' || a.status === 'late') attMap[a.student_id].present++;
+  });
+
+  // Attach real % to each student for filtering use
+  allStudents = allStudents.map(s => ({
+    ...s,
+    _pct: attMap[s.id] && attMap[s.id].total > 0
+      ? Math.round((attMap[s.id].present / attMap[s.id].total) * 100)
+      : null
+  }));
+
+  renderStudents(allStudents);
+}
+
+function renderStudents(data) {
+  const tbody = document.getElementById('students-body');
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--gray);padding:20px">No students found</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(s => {
+    const pct   = s._pct;
+    const color = pct === null ? 'var(--gray)'
+                : pct >= 75   ? 'var(--green)'
+                : pct >= 60   ? 'var(--amber)'
+                :               'var(--red)';
+    const display = pct === null ? 'No data' : pct + '%';
+    const barW    = pct === null ? 0 : pct;
+    return `
+      <tr>
+        <td style="text-align:center;color:var(--teal)">${s.finger_slot||'—'}</td>
+        <td style="font-family:monospace">${s.student_id}</td>
+        <td style="font-weight:500">${s.full_name}</td>
+        <td style="color:var(--gray)">${s.course||'—'}</td>
+        <td style="width:180px">
+          <span style="color:${color};font-weight:600">${display}</span>
+          <div class="pct-bar"><div class="pct-fill" style="width:${barW}%;background:${color}"></div></div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function filterStudents() {
+  const q = document.getElementById('stu-search').value.toLowerCase();
+  renderStudents(allStudents.filter(s =>
+    s.full_name.toLowerCase().includes(q) ||
+    (s.student_id||'').toLowerCase().includes(q)));
+}
+
+// ── REPORTS ──────────────────────────────────────────────
+async function loadReports() {
+  const today = new Date();
+  const month = today.toISOString().substring(0,7);
+
+  const [sessRes, studRes, attRes] = await Promise.all([
+    sb.from('sessions').select('id',{count:'exact'})
+      .gte('date', month+'-01'),
+    sb.from('students').select('*').eq('is_active',true).order('full_name'),
+    sb.from('attendance').select('student_id,status')
+  ]);
+
+  document.getElementById('monthly-sessions').textContent = sessRes.count || 0;
+
+  // Compute per-student percentages
+  const attMap = {};
+  (attRes.data||[]).forEach(a => {
+    if (!attMap[a.student_id]) attMap[a.student_id] = {total:0,present:0};
+    attMap[a.student_id].total++;
+    if (a.status==='present') attMap[a.student_id].present++;
+  });
+
+  const students = studRes.data || [];
+  let totalPct = 0, atRisk = 0;
+  const tbody = document.getElementById('report-body');
+
+  tbody.innerHTML = students.map(s => {
+    const rec   = attMap[s.id] || {total:0,present:0};
+    const pct   = rec.total > 0 ? Math.round((rec.present/rec.total)*100) : 0;
+    totalPct   += pct;
+    if (pct < 75 && rec.total > 0) atRisk++;
+    const color = pct>=75?'var(--green)':pct>=60?'var(--amber)':'var(--red)';
+    const risk  = pct<75 && rec.total>0 ? '<span class="badge badge-absent">At Risk</span>' :
+                  pct<90 ? '<span class="badge" style="background:#1E293B;color:var(--gray)">Watch</span>' :
+                  '<span class="badge badge-present">Good</span>';
+    return `
+      <tr>
+        <td style="font-family:monospace">${s.student_id}</td>
+        <td style="font-weight:500">${s.full_name}</td>
+        <td style="color:var(--gray)">${s.course||'—'}</td>
+        <td>
+          <span style="color:${color};font-weight:700">${pct}%</span>
+          <div class="pct-bar" style="width:120px">
+            <div class="pct-fill" style="width:${pct}%;background:${color}"></div>
+          </div>
+        </td>
+        <td>${risk}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const avg = students.length > 0 ? Math.round(totalPct/students.length) : 0;
+  document.getElementById('overall-rate').textContent = avg + '%';
+  document.getElementById('overall-rate').style.color =
+    avg>=75?'var(--green)':avg>=60?'var(--amber)':'var(--red)';
+  document.getElementById('at-risk').textContent = atRisk;
+}
+
+// ── ONLINE STATUS ────────────────────────────────────────
+async function checkOnlineStatus() {
+  try {
+    await sb.from('schools').select('id').limit(1);
+    document.getElementById('online-status').innerHTML =
+      '<span style="color:var(--green)">● Online</span>';
+  } catch {
+    document.getElementById('online-status').innerHTML =
+      '<span style="color:var(--amber)">● Offline</span>';
+  }
+}
+
+// ── REAL-TIME UPDATES ────────────────────────────────────
+// Refresh dashboard when new attendance comes in
+sb.channel('attendance-changes')
+  .on('postgres_changes', {event:'INSERT', schema:'public', table:'attendance'},
+    () => {
+      if (document.getElementById('page-dashboard').classList.contains('active'))
+        loadDashboard();
+    })
+  .subscribe();
+
+// Refresh dashboard when a session starts or ends
+sb.channel('session-changes')
+  .on('postgres_changes', {event:'INSERT', schema:'public', table:'sessions'},
+    () => {
+      if (document.getElementById('page-dashboard').classList.contains('active'))
+        loadDashboard();
+    })
+  .on('postgres_changes', {event:'UPDATE', schema:'public', table:'sessions'},
+    () => {
+      if (document.getElementById('page-dashboard').classList.contains('active'))
+        loadDashboard();
+      if (document.getElementById('page-sessions').classList.contains('active'))
+        loadSessions();
+    })
+  .subscribe();
+</script>
+</body>
+</html>
